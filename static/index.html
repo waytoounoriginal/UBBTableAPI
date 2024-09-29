@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>University Timetable</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="d-flex flex-column align-items-center vh-100 bg-light">
+
+    <div class="card shadow-sm p-4 mb-4" style="width: 20rem;">
+        <h3 class="text-center mb-4">University Form</h3>
+
+        <!-- Section Dropdown -->
+        <div class="mb-3">
+            <label for="section" class="form-label">Specializarea:</label>
+            <select class="form-select" id="section">
+                <option selected>Specializarea:</option>
+                <option value="M">Matematica - romana</option>
+                <option value="I">Informatica - romana</option>
+                <option value="MI">Matematica-Informatica - romana</option>
+                 <option value="MM">Matematica - maghiara</option>
+                <option value="IM">Informatica - maghiara</option>
+                <option value="MIM">Matematica-Informatica - maghiara</option>
+                <option value="IIM">Ingineria Informatiei - maghiara
+                <option value="IG">Informatica - germana</option>
+                <option value="IE">Informatica - engleza</option>
+                <option value="MIE">Matematica-Informatica - engleza</option>
+                <option value="IAE">Inteligenta Artificiala - engleza</option>
+                <option value="IIE">Ingineria Informatiei - engleza</option>
+            </select>
+        </div>
+
+        <!-- Year Dropdown -->
+        <div class="mb-3">
+            <label for="year" class="form-label">Anul:</label>
+            <select class="form-select" id="year">
+                <option selected>Anul:</option>
+                <option value="1">Anul 1</option>
+                <option value="2">Anul 2</option>
+                <option value="3">Anul 3</option>
+            </select>
+        </div>
+
+        <!-- Group Input -->
+        <div class="mb-3">
+            <label for="group" class="form-label">Grupa:</label>
+            <input type="text" class="form-control" id="group" placeholder="e.g. 911, 912, 913">
+        </div>
+
+        <!-- Submit Button -->
+        <div class="d-grid">
+            <button id="getTimetable" class="btn btn-primary" type="button">Submit</button>
+        </div>
+
+        <!-- Add to Google Calendar Button -->
+        <div class="d-grid mt-3">
+            <button id="addToCalendar" class="btn btn-secondary" type="button" disabled>Add to Google Calendar</button>
+        </div>
+    </div>
+
+    <!-- Timetable Container -->
+    <div class="container" id="timetable"></div>
+
+    <!-- Bootstrap JS (with Popper) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let timetableData = {}; // Store timetable data globally
+
+        document.querySelector("#getTimetable").addEventListener('click', function() {
+            const section = document.querySelector('#section').value;
+            const year = document.querySelector('#year').value;
+            const group = document.querySelector('#group').value;
+
+            if (section === "Select Section" || year === "Select Year" || group.trim() === "") {
+                alert("Please fill in all fields.");
+                return;
+            }
+
+            const apiUrl = `/api/v1/getweek/${section}/${year}/${group}`;
+
+            fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    timetableData = data; // Save data for calendar export
+                    document.querySelector('#addToCalendar').disabled = false; // Enable calendar button
+
+                    const timetable = document.querySelector('#timetable');
+                    timetable.innerHTML = ''; // Clear previous timetable
+
+                    for (const [date, classes] of Object.entries(data)) {
+                        const dayHeader = document.createElement('h4');
+                        dayHeader.className = 'mt-4 mb-3';
+                        dayHeader.textContent = `Timetable for ${date}`;
+                        timetable.appendChild(dayHeader);
+
+                        const dayContainer = document.createElement('div');
+                        dayContainer.className = 'row g-3 mb-4';
+
+                        classes.forEach(item => {
+                            const classInfo = JSON.parse(item);
+
+                            const classCard = document.createElement('div');
+                            classCard.className = 'col-md-4';
+                            classCard.innerHTML = `
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5 class="card-title">${classInfo.materie} (${classInfo.tip})</h5>
+                                        <p class="card-text">
+                                            <strong>Grupa:</strong> ${classInfo.grupa}<br>
+                                            <strong>Time:</strong> ${classInfo.start}:00 - ${classInfo.end}:00<br>
+                                            <strong>Room:</strong> ${classInfo.sala}<br>
+                                            <strong>Professor:</strong> ${classInfo.profesor}<br>
+                                            ${classInfo.fiecare_saptamana ? "<span class='badge bg-success'>Weekly</span>" : ""}
+                                            ${classInfo.saptamana_para ? "<span class='badge bg-info'>Even Weeks Only</span>" : !classInfo.fiecare_saptamana ? "<span class='badge bg-warning'>Odd Weeks Only</span>" : ""}
+                                        </p>
+                                    </div>
+                                </div>
+                            `;
+                            dayContainer.appendChild(classCard);
+                        });
+
+                        timetable.appendChild(dayContainer);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching timetable:', error);
+                });
+        });
+
+        document.querySelector("#addToCalendar").addEventListener('click', function() {
+            const calendarData = generateICal(timetableData);
+            const blob = new Blob([calendarData], { type: 'text/calendar' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'timetable.ics';
+            link.click();
+        });
+
+        function generateICal(data) {
+            let ical = 'BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Timetable//Google Calendar Export//EN\n';
+
+            for (const [date, classes] of Object.entries(data)) {
+                classes.forEach(item => {
+                    const classInfo = JSON.parse(item);
+                    const startTime = formatDateTime(date, classInfo.start);
+                    const endTime = formatDateTime(date, classInfo.end);
+
+                    ical += `BEGIN:VEVENT\n`;
+                    ical += `SUMMARY:${classInfo.materie} (${classInfo.tip}) - ${classInfo.grupa}\n`;
+                    ical += `DTSTART:${startTime}\n`;
+                    ical += `DTEND:${endTime}\n`;
+                    ical += `DESCRIPTION:Professor: ${classInfo.profesor}\\nRoom: ${classInfo.sala}\n`;
+                    ical += `LOCATION:${classInfo.sala}\n`;
+                    ical += `END:VEVENT\n`;
+                });
+            }
+            ical += 'END:VCALENDAR';
+            return ical;
+        }
+
+        function formatDateTime(date, time) {
+            // format the date string
+            let parts = date.split('-');
+            let newDate = parts[2] + "-" +  parts[1] + "-" + parts[0];
+
+            const dateObj = new Date(`${newDate}T${time.toString().padStart(2, '0')}:00:00`);
+            //  console.log(dateObj);
+            return dateObj.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        }
+    </script>
+</body>
+</html>

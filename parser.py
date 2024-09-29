@@ -7,11 +7,11 @@ from bs4 import BeautifulSoup
 
 @dataclass
 class OraOrar:
-    ziua: str
+    ziua: int
     ora_start: int
     ora_end: int
     always_on: bool
-    saptaana_para: bool
+    saptamana_para: bool
     sala: str
     grupa: str
     tip: str
@@ -26,9 +26,9 @@ class OraOrar:
                 "start": self.ora_start,
                 "end": self.ora_end,
                 "fiecare_saptamana": self.always_on,
-                "saptamana_para": self.saptaana_para,
+                "saptamana_para": self.saptamana_para,
                 "sala": self.sala,
-                "groupa": self.grupa,
+                "grupa": self.grupa,
                 "tip": self.tip,
                 "materie": self.materie,
                 "profesor": self.profesor,
@@ -37,6 +37,14 @@ class OraOrar:
 
     @staticmethod
     def from_table_row(table_row: list[str]) -> 'OraOrar':
+
+        ZILE_LUT = {
+            "Luni": 1,
+            "Marti": 2,
+            "Miercuri": 3,
+            "Joi": 4,
+            "Vineri": 5
+        }
 
         zi = table_row[0]
         ore = table_row[1]
@@ -52,11 +60,11 @@ class OraOrar:
         sala, grupa, tip, materie, prof = table_row[3:]
 
         return OraOrar(
-            ziua=zi,
+            ziua=ZILE_LUT[zi],
             ora_start=int(start),
             ora_end=int(end),
             always_on=al_on,
-            saptaana_para=para,
+            saptamana_para=para,
             sala=sala,
             grupa=grupa,
             tip=tip,
