@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>University Timetable</title>
+    <title>Orare UBB FMI - Licenta</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="d-flex flex-column align-items-center vh-100 bg-light">
 
     <div class="card shadow-sm p-4 mb-4" style="width: 20rem;">
-        <h3 class="text-center mb-4">University Form</h3>
+        <h3 class="text-center mb-4">Orare UBB FMI - Licenta</h3>
 
         <!-- Section Dropdown -->
         <div class="mb-3">
@@ -49,6 +49,22 @@
             <input type="text" class="form-control" id="group" placeholder="e.g. 911, 912, 913">
         </div>
 
+        <div class="mb-3">
+            <label for="semigrupa" class="form-label">Semigrupa:</label>
+            <select class="form-select" id="semigrupa">
+                <option selected>Semigrupa:</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+            </select>
+        </div>
+
+
+        <div class="mb-3"></div>
+            <label for="date-picker" class="form-label">Data:</label>
+            <input type="date" id="date-picker" name="date-picker"/>
+        </div>
+
+
         <!-- Submit Button -->
         <div class="d-grid">
             <button id="getTimetable" class="btn btn-primary" type="button">Submit</button>
@@ -56,50 +72,119 @@
 
         <!-- Add to Google Calendar Button -->
         <div class="d-grid mt-3">
-            <button id="addToCalendar" class="btn btn-secondary" type="button" disabled>Add to Google Calendar</button>
+            <button id="addToCalendar" class="btn btn-secondary" type="button" disabled>Add to Calendar</button>
         </div>
     </div>
 
     <!-- Timetable Container -->
     <div class="container" id="timetable"></div>
 
+    <!-- Toast menus -->
+    <div id='toast-area' class="toast-container position-fixed bottom-0 end-0 p-3">
+        
+    </div>
+
     <!-- Bootstrap JS (with Popper) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let timetableData = {}; // Store timetable data globally
 
+        //  Set the minimum date
+        const datePicker = document.querySelector("#date-picker");
+        let str = new Date().toISOString().split("T")[0];
+        datePicker.setAttribute('min', str);
+        datePicker.setAttribute('value', str);
+
+
+        const toastArea = document.querySelector("#toast-area");
+
+        function spawnToast(title, content) {
+            let toastHTML = 
+            `<div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+              <strong class="me-auto">${title}</strong>
+              <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                ${content}
+            </div>
+          </div>`;
+
+          let element = document.createElement('div');
+          element.innerHTML = toastHTML;
+          element = element.firstChild;
+
+          toastArea.appendChild(element);
+
+          const toastBootstrap = bootstrap.Toast.getOrCreateInstance(element);
+          toastBootstrap.show();
+        }
+
+
         document.querySelector("#getTimetable").addEventListener('click', function() {
             const section = document.querySelector('#section').value;
             const year = document.querySelector('#year').value;
             const group = document.querySelector('#group').value;
+            const semi = document.querySelector("#semigrupa").value;
 
-            if (section === "Select Section" || year === "Select Year" || group.trim() === "") {
+            if (section === "Specializarea:" || year === "Anul:" || group.trim() === "" || semi == "Semigrupa:") {
                 alert("Please fill in all fields.");
                 return;
             }
 
-            const apiUrl = `/api/v1/getweek/${section}/${year}/${group}`;
+            const data = datePicker.value;
+
+            const apiUrl = `/api/v1/getweek/${section}/${year}/${group}?data=${data}`;
+
+            const timetable = document.querySelector('#timetable');
+            timetable.innerHTML = ''; // Clear previous timetable
+
+            //  Spawn a loader
+            timetable.innerHTML = `<div class="spinner-border text-primary" role="status">
+  <span class="visually-hidden">Loading...</span>
+</div>
+`;
 
             fetch(apiUrl)
                 .then(response => response.json())
                 .then(data => {
-                    timetableData = data; // Save data for calendar export
+                    timetable.innerHTML = ''; // Clear previous timetable
+                    //  test the status code
+                    let status = data.status;
+                    if(status != 200) {
+                        //  Add the toast
+                        spawnToast("Oops! Ceva nu a mers!", data.content);
+                        return;
+                    }
+
+                    console.log(data.content);
+
+                    // timetableData = data.content; // Save data for calendar export
                     document.querySelector('#addToCalendar').disabled = false; // Enable calendar button
 
-                    const timetable = document.querySelector('#timetable');
-                    timetable.innerHTML = ''; // Clear previous timetable
 
-                    for (const [date, classes] of Object.entries(data)) {
+                    for (const [date, classes] of Object.entries(data.content)) {
                         const dayHeader = document.createElement('h4');
                         dayHeader.className = 'mt-4 mb-3';
                         dayHeader.textContent = `Timetable for ${date}`;
                         timetable.appendChild(dayHeader);
+
+                        timetableData[date] = [];
 
                         const dayContainer = document.createElement('div');
                         dayContainer.className = 'row g-3 mb-4';
 
                         classes.forEach(item => {
                             const classInfo = JSON.parse(item);
+
+                            let grupa = classInfo.grupa;
+                            if(grupa.includes('/')) {
+                                console.log(grupa);
+                                if(grupa.split('/')[1] != semi.toString())
+                                    return;
+                            }
+
+                            timetableData[date].push(item);
 
                             const classCard = document.createElement('div');
                             classCard.className = 'col-md-4';
@@ -110,10 +195,10 @@
                                         <p class="card-text">
                                             <strong>Grupa:</strong> ${classInfo.grupa}<br>
                                             <strong>Time:</strong> ${classInfo.start}:00 - ${classInfo.end}:00<br>
-                                            <strong>Room:</strong> ${classInfo.sala}<br>
+                                            <strong>Room:</strong> <a href='${classInfo.link_sala}'>${classInfo.sala}</a><br>
                                             <strong>Professor:</strong> ${classInfo.profesor}<br>
                                             ${classInfo.fiecare_saptamana ? "<span class='badge bg-success'>Weekly</span>" : ""}
-                                            ${classInfo.saptamana_para ? "<span class='badge bg-info'>Even Weeks Only</span>" : !classInfo.fiecare_saptamana ? "<span class='badge bg-warning'>Odd Weeks Only</span>" : ""}
+                                            ${classInfo.saptamana_para ? "<span id='indicator' freq='even' class='badge bg-info'>Even Weeks Only</span>" : !classInfo.fiecare_saptamana ? "<span id='indicator' freq='odd' class='badge bg-warning'>Odd Weeks Only</span>" : ""}
                                         </p>
                                     </div>
                                 </div>
@@ -153,6 +238,7 @@
                     ical += `DTEND:${endTime}\n`;
                     ical += `DESCRIPTION:Professor: ${classInfo.profesor}\\nRoom: ${classInfo.sala}\n`;
                     ical += `LOCATION:${classInfo.sala}\n`;
+                    if(classInfo.fiecare_saptamana) ical += `RRULE:FREQ=WEEKLY\n`;
                     ical += `END:VEVENT\n`;
                 });
             }

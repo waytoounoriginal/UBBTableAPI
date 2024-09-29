@@ -2,6 +2,7 @@ from datetime import datetime, date, timedelta
 
 from fastapi import FastAPI
 from starlette.staticfiles import StaticFiles
+from zoneinfo import ZoneInfo
 
 from parser import (
     get_page_source,
@@ -9,6 +10,10 @@ from parser import (
     parse_table,
     OraOrar
 )
+
+
+# set the timezone
+TZ = ZoneInfo("Europe/Bucharest")
 
 # Def curr an
 CURR_YR = 2024
@@ -24,20 +29,36 @@ app.mount("/", StaticFiles(directory="static", html=True))
 
 # Create the api
 @api_route.get("/getweek/{specializare}/{an}/{grupa}")
-async def get_week_timetable(specializare: str, an: int, grupa: str):
+async def get_week_timetable(specializare: str, an: int, grupa: str, data: str = ""):
     page = get_page_source(CURR_YR, CURR_SEM, specializare, an)
+    if page is None:
+        return {
+            "status": 404,
+            "content": "Pagina invalida"
+        }
+
     tbl = get_table_grupa(page, grupa)
+    if tbl is None:
+        return {
+            "status": 404,
+            "content": "Grupa invalida"
+        }
+
     orar_raw = parse_table(tbl)
 
-    # Will have to fix it on the start of the week
-    now = date.today()
-    mon = now - timedelta(now.weekday() % 7)
+    if data == "":
+        data = datetime.now(tz=TZ)
+    else:
+        data = datetime.strptime(data, "%Y-%m-%d")
+
+    data = date(year=data.year, month=data.month, day=data.day)
+    mon = data - timedelta(data.weekday() % 7)
 
     week_dict: dict = {}
     orar_index = 0
     last_index = 0
 
-    diff = (now - DATA_INCEPERE_AN).days
+    diff = (data - DATA_INCEPERE_AN).days
     is_saptamana_para = False if diff < 0 else ((diff + 1) // 7 + 1) % 2 == 0
 
     while mon.weekday() < 5:
@@ -49,7 +70,10 @@ async def get_week_timetable(specializare: str, an: int, grupa: str):
         mon += timedelta(days=1)
         last_index = orar_index
 
-    return week_dict
+    return {
+        "status": 200,
+        "content": week_dict
+    }
 
 
 
