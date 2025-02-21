@@ -17,7 +17,7 @@ TZ = ZoneInfo("Europe/Bucharest")
 
 # Def curr an
 CURR_YR = 2024
-CURR_SEM = 1
+CURR_SEM = 2
 DATA_INCEPERE_AN = date(year=2024, month=9, day=30)
 
 
